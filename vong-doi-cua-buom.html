@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vòng đời của bướm – Mô hình 3D tương tác</title>
+<style>
+:root{--green:#26734d;--green2:#dff3e5;--blue:#eaf5ff;--gold:#ffe9a8;--ink:#20352b;--muted:#61736a;--white:#fff}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(180deg,#f2fbf4 0%,#f6fbff 100%);color:var(--ink);font-family:Arial,"Segoe UI",sans-serif;line-height:1.55}
+header{max-width:1200px;margin:auto;padding:26px 22px 18px;text-align:center}
+.eyebrow{display:inline-block;background:#dff3e5;color:#226443;padding:5px 13px;border-radius:999px;font-size:.82rem;font-weight:700;letter-spacing:.04em}
+h1{font-size:clamp(1.7rem,3vw,2.65rem);line-height:1.15;margin:12px 0 8px;color:#1e6242}
+header p{max-width:800px;margin:0 auto;color:#526b5e}
+main{max-width:1200px;margin:0 auto;padding:0 22px 40px}
+h2{font-size:1.25rem;margin:0 0 12px;color:#245d42}
+.section{margin:18px 0 24px}
+.viewer-wrap{background:#fff;border:1px solid #d9e9dd;border-radius:22px;padding:12px;box-shadow:0 10px 28px #264e3210}
+#scene-container{height:clamp(360px,57vw,650px);width:100%;position:relative;overflow:hidden;border-radius:14px;background:#dff1e4}
+#scene-container canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
+#scene-error{display:none;padding:22px;color:#7b342c;background:#fff1ef;border-radius:12px;margin-top:10px}
+.controls{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;padding:14px 2px 4px}
+button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:11px 15px;cursor:pointer;transition:transform .15s,filter .15s,background .15s;min-height:44px}
+button:hover{filter:brightness(.97);transform:translateY(-1px)}
+button:focus-visible{outline:3px solid #f0b72e;outline-offset:2px}
+button:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.primary{background:#26734d;color:#fff}.secondary{background:#e6f3e9;color:#225d40}.bluebtn{background:#e4f2ff;color:#24547a}.goldbtn{background:#fff0bd;color:#70531a}.danger{background:#ffebe6;color:#8b3c2e}
+.stage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.stage-card{background:#fff;border:2px solid #e0ebe3;border-radius:17px;padding:12px;text-align:center;color:var(--ink);min-width:0}
+.stage-card[aria-pressed="true"]{border-color:#26734d;background:#edfaf0;box-shadow:0 0 0 3px #26734d18}
+.stage-card .emoji{font-size:2rem;display:block;margin-bottom:4px}
+.stage-card strong{display:block;font-size:1rem}
+.stage-card small{display:block;color:var(--muted);font-weight:400;margin-top:3px}
+.panel{background:#fff;border:1px solid #dcebe0;border-radius:18px;padding:20px}
+.info-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(240px,.8fr);gap:18px}
+.stage-kicker{font-size:.8rem;color:#26734d;text-transform:uppercase;font-weight:800;letter-spacing:.07em}
+#stage-title{font-size:1.55rem;margin:4px 0 8px}
+#stage-facts{margin:0;padding-left:21px}
+#stage-facts li{margin:7px 0}
+.fact-side{background:#f1f8ff;border-radius:14px;padding:16px}
+.fact-side h3{margin:0 0 7px;font-size:1rem;color:#2d5d7d}
+.cycle{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:7px;margin-top:18px;padding:13px;background:#f5fbf5;border-radius:13px;font-weight:800;color:#286346}
+.cycle span{white-space:nowrap}.cycle b{color:#d69b24}
+.explore{background:#fff9e9;border:1px solid #f3e4b5;border-radius:18px;padding:20px}
+.explore h2{color:#785d1f}
+#question{font-size:1.08rem;font-weight:700;margin:5px 0 12px}
+#hint{display:none;margin-top:12px;padding:12px 14px;background:#fff;border-left:4px solid #e5b53c;border-radius:8px}
+footer{text-align:center;padding:5px 18px 24px;color:#75857b;font-size:.86rem}
+.status{min-height:1.5em;text-align:center;color:#456a54;font-size:.92rem;margin:4px 0 0}
+@media(max-width:720px){main{padding:0 13px 28px}header{padding:22px 15px 14px}.stage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.info-layout{grid-template-columns:1fr}.viewer-wrap{padding:8px}#scene-container{height:390px}.controls button{flex:1 1 42%;padding:10px 8px}.panel,.explore{padding:16px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <span class="eyebrow">KHÁM PHÁ KHOA HỌC · LỚP 4–5</span>
+  <h1>VÒNG ĐỜI CỦA BƯỚM</h1>
+  <p>Chọn từng giai đoạn để khám phá. Kéo chuột hoặc vuốt để xoay mô hình; cuộn hoặc dùng nút phóng to, thu nhỏ để quan sát từ nhiều góc.</p>
+</header>
+<main>
+  <section class="section" aria-labelledby="scene-heading">
+    <h2 id="scene-heading">Không gian thực hành 3D</h2>
+    <div class="viewer-wrap">
+      <div id="scene-container" aria-label="Không gian mô hình 3D tương tác"></div>
+      <div id="scene-error" role="alert">Không thể khởi tạo mô hình 3D. Hãy thử mở bằng trình duyệt mới hơn có hỗ trợ WebGL và kết nối Internet để tải thư viện Three.js.</div>
+      <div class="controls" aria-label="Điều khiển mô hình 3D">
+        <button id="auto-rotate" class="secondary" aria-pressed="false">⟳ Xoay tự do: Tắt</button>
+        <button id="zoom-in" class="bluebtn">＋ Phóng to</button>
+        <button id="zoom-out" class="bluebtn">－ Thu nhỏ</button>
+        <button id="reset-view" class="secondary">↺ Đặt lại góc nhìn</button>
+        <button id="fit-view" class="goldbtn">◎ Toàn cảnh</button>
+      </div>
+      <p class="status" id="view-status" aria-live="polite">Kéo để xoay · Cuộn để thu phóng · Nhấn hai lần để quan sát gần hơn</p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="stages-heading">
+    <h2 id="stages-heading">Chọn giai đoạn vòng đời</h2>
+    <div class="stage-grid">
+      <button class="stage-card" data-stage="0" aria-pressed="true"><span class="emoji">🥚</span><strong>TRỨNG</strong><small>Khởi đầu vòng đời</small></button>
+      <button class="stage-card" data-stage="1" aria-pressed="false"><span class="emoji">🐛</span><strong>SÂU NON</strong><small>Ăn và lớn lên</small></button>
+      <button class="stage-card" data-stage="2" aria-pressed="false"><span class="emoji">🌿</span><strong>NHỘNG</strong><small>Biến đổi cơ thể</small></button>
+      <button class="stage-card" data-stage="3" aria-pressed="false"><span class="emoji">🦋</span><strong>BƯỚM TRƯỞNG THÀNH</strong><small>Sinh sản, tiếp tục vòng đời</small></button>
+    </div>
+    <div class="controls">
+      <button id="start-tour" class="primary">▶ Khám phá toàn bộ vòng đời</button>
+      <button id="pause-tour" class="goldbtn" disabled>Ⅱ Tạm dừng</button>
+      <button id="continue-tour" class="bluebtn" disabled>▶ Tiếp tục</button>
+      <button id="stop-tour" class="danger" disabled>■ Kết thúc trình diễn</button>
+    </div>
+    <p class="status" id="tour-status" aria-live="polite">Chọn một giai đoạn bất kỳ hoặc bắt đầu trình diễn toàn bộ vòng đời.</p>
+  </section>
+
+  <section class="section" aria-labelledby="knowledge-heading">
+    <h2 id="knowledge-heading">Bảng kiến thức khoa học</h2>
+    <div class="panel">
+      <div class="info-layout">
+        <div>
+          <div class="stage-kicker" id="stage-kicker">Giai đoạn 1</div>
+          <h3 id="stage-title">Trứng</h3>
+          <ul id="stage-facts"></ul>
+        </div>
+        <aside class="fact-side">
+          <h3>🔎 Em hãy quan sát</h3>
+          <p id="observe-tip">Quan sát vị trí và hình dạng của các quả trứng trên lá. Thử xoay mô hình để nhìn từ phía bên cạnh.</p>
+          <p><strong>Nhiệm vụ:</strong> Hãy mô tả một đặc điểm em nhìn thấy ở mô hình 3D.</p>
+        </aside>
+      </div>
+      <div class="cycle" aria-label="Sơ đồ vòng đời">
+        <span>TRỨNG</span><b>→</b><span>SÂU NON</span><b>→</b><span>NHỘNG</span><b>→</b><span>BƯỚM TRƯỞNG THÀNH</span><b>→</b><span>TRỨNG</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section explore" aria-labelledby="explore-heading">
+    <h2 id="explore-heading">🌼 Góc khám phá</h2>
+    <p id="question">Vì sao bướm thường đẻ trứng trên hoặc gần cây phù hợp?</p>
+    <button id="show-hint" class="goldbtn" aria-expanded="false">Hiện gợi ý</button>
+    <div id="hint" aria-live="polite"></div>
+  </section>
+</main>
+<footer>Mô hình học tập 3D tương tác · Made by Như Quỳnh</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  'use strict';
+  const container = document.getElementById('scene-container');
+  const errorBox = document.getElementById('scene-error');
+  const stageButtons = [...document.querySelectorAll('.stage-card')];
+  const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const stageInfo = [
+    {name:'Trứng', kicker:'Giai đoạn 1', facts:[
+      'Bướm cái đẻ trứng trên lá cây hoặc ở vị trí phù hợp với loài bướm.',
+      'Trứng thường nhỏ và có hình dạng đặc trưng; hình dạng, màu sắc khác nhau giữa các loài.',
+      'Sau một thời gian, sâu non nở ra từ trứng khi điều kiện thích hợp.'
+    ], tip:'Quan sát những quả trứng nhỏ bám trên lá. Xoay mô hình để xem chúng nằm ở vị trí nào trên bề mặt lá.', question:'Vì sao bướm thường đẻ trứng trên hoặc gần cây phù hợp?', hint:'Cây phù hợp có thể cung cấp thức ăn cho sâu non sau khi nở. Mỗi loài bướm thường có những cây chủ thích hợp.'},
+    {name:'Sâu non', kicker:'Giai đoạn 2', facts:[
+      'Sâu non nở ra từ trứng.',
+      'Đây là giai đoạn ăn và lớn lên mạnh mẽ; sâu non thường ăn lá cây.',
+      'Khi cơ thể lớn lên, sâu non có thể lột xác nhiều lần.'
+    ], tip:'Quan sát thân sâu gồm nhiều đốt và các chân nhỏ. Chú ý chuyển động uốn nhẹ của thân.', question:'Vì sao sâu non cần ăn nhiều thức ăn?', hint:'Sâu non cần năng lượng và chất dinh dưỡng để lớn lên, phát triển và chuẩn bị chuyển sang giai đoạn nhộng.'},
+    {name:'Nhộng', kicker:'Giai đoạn 3', facts:[
+      'Khi phát triển đủ lớn, sâu non chuyển sang giai đoạn nhộng.',
+      'Bên trong nhộng diễn ra quá trình biến đổi cơ thể để hình thành bướm trưởng thành.',
+      'Nhộng thường bám vào cành cây, lá hoặc vị trí phù hợp tùy loài.'
+    ], tip:'Quan sát hình dạng thuôn của nhộng và phần tơ bám vào cành. Thử nhìn từ phía sau cành.', question:'Điều gì đang diễn ra bên trong nhộng?', hint:'Cơ thể sâu non biến đổi trong giai đoạn nhộng để hình thành các đặc điểm của bướm trưởng thành.'},
+    {name:'Bướm trưởng thành', kicker:'Giai đoạn 4', facts:[
+      'Bướm trưởng thành có hai đôi cánh, sáu chân, một đôi râu và vòi hút thức ăn.',
+      'Nhiều loài bướm hút mật hoa ở các loài thực vật.',
+      'Bướm trưởng thành sinh sản; bướm cái đẻ trứng và vòng đời tiếp tục.'
+    ], tip:'Quan sát hai đôi cánh, thân, râu và sáu chân. Xoay mô hình để nhìn hoa văn cánh từ nhiều hướng.', question:'Bướm giúp ích gì cho các loài thực vật?', hint:'Khi ghé thăm hoa để hút mật, bướm có thể mang hạt phấn từ hoa này sang hoa khác, góp phần thụ phấn cho một số loài thực vật.'}
+  ];
+  let scene, camera, renderer, root, controls = null, currentStage = 0, autoRotate = false;
+  let stageGroups = [], activeGroup = null, raf = 0, lastTime = 0, tourTimer = null, tourState = 'idle', tourIndex = 0;
+  let butterflyWings = [], caterpillarParts = [], flowerHeads = [];
+  const cameraHome = new THREE.Vector3(0, 3.2, 9.2);
+  const cameraTarget = new THREE.Vector3(0, 1.7, 0);
+  let desiredCamera = cameraHome.clone(), desiredTarget = cameraTarget.clone();
+
+  function material(color, roughness=.72, extra={}) { return new THREE.MeshStandardMaterial({color, roughness, ...extra}); }
+  function mesh(geo, mat, parent, pos=[0,0,0], rot=[0,0,0]) {
+    const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.rotation.set(...rot); m.castShadow=true; m.receiveShadow=true; parent.add(m); return m;
+  }
+  function sphere(parent, color, pos, scale, detail=18) {
+    const m=mesh(new THREE.SphereGeometry(1,detail,Math.max(10,Math.floor(detail*.7))),material(color),parent,pos);
+    m.scale.set(...scale); return m;
+  }
+  function makeLeaf(parent, pos, scale=1, rotation=0, color=0x4f9a55) {
+    const group=new THREE.Group(); group.position.set(...pos); group.rotation.z=rotation; group.scale.setScalar(scale); parent.add(group);
+    const leaf=mesh(new THREE.SphereGeometry(1,20,12),material(color),group,[0,0,0],[0,0,.25]);
+    leaf.scale.set(.78,.23,.055);
+    const vein=mesh(new THREE.CylinderGeometry(.012,.012,.95,6),material(0xc1dca0),group,[0,0,.025],[0,0,Math.PI/2]);
+    vein.scale.set(1,1,1); return group;
+  }
+  function makeFlower(parent, pos, scale=1, petalColor=0xffd66e) {
+    const g=new THREE.Group(); g.position.set(...pos); g.scale.setScalar(scale); parent.add(g);
+    const stem=mesh(new THREE.CylinderGeometry(.035,.055,.85,8),material(0x39834b),g,[0,-.35,0]);
+    makeLeaf(g,[-.17,-.35,0],.42,.55,0x4d9b55);
+    for(let i=0;i<6;i++){const a=i*Math.PI/3; const p=sphere(g,petalColor,[Math.cos(a)*.18,.12,Math.sin(a)*.18],[.16,.11,.12],14);p.rotation.y=-a;}
+    sphere(g,0x9b6b28,[0,.15,0],[.105,.1,.105],14); flowerHeads.push(g); return g;
+  }
+  function buildGarden() {
+    const garden=new THREE.Group(); root.add(garden);
+    const ground=mesh(new THREE.PlaneGeometry(30,24),material(0x9fca8b),garden,[0,-.15,0],[-Math.PI/2,0,0]); ground.receiveShadow=true;
+    // Distant rolling garden mounds
+    for(let i=0;i<9;i++){
+      const x=(i-4)*3.3, z=-5.2-(i%3)*1.5;
+      const mound=sphere(garden,[0x9acb91,0xa7d4a0,0xb4dca6][i%3],[x,.1,z],[2.8,.8,1.2],16);
+      mound.castShadow=false;
+    }
+    // Main branch and smaller twigs
+    const branch=mesh(new THREE.CylinderGeometry(.16,.24,6,12),material(0x795237),garden,[-1.55,2.3,-.2],[0,0,-.23]);
+    mesh(new THREE.CylinderGeometry(.09,.14,3.1,10),material(0x896344),garden,[-.45,3.2,-.15],[0,0,-.85]);
+    mesh(new THREE.CylinderGeometry(.07,.1,2.6,10),material(0x896344),garden,[-2.3,3.5,-.3],[0,0,.7]);
+    for(let i=0;i<12;i++){
+      const x=-3.2+(i%4)*.7, y=2.1+Math.floor(i/4)*.6, z=-.35-(i%3)*.15;
+      makeLeaf(garden,[x,y,z],.75,(i%2?-.5:.5),i%3?0x4f9a55:0x65ad5e);
+    }
+    // Flowers in foreground
+    makeFlower(garden,[2.2,.4,1.1],1.15,0xffd56d);
+    makeFlower(garden,[3.1,.25,-.4],.85,0xf6a8c4);
+    makeFlower(garden,[-3.2,.3,1.4],.8,0xfff0a3);
+    for(let i=0;i<20;i++){
+      const x=-6+Math.random()*12,z=-4+Math.random()*7;
+      if(Math.abs(x)<1.1 && z>-1.5) continue;
+      makeLeaf(garden,[x,.05,z],.3+Math.random()*.35,Math.random()*Math.PI,0x5caa58);
+    }
+    return garden;
+  }
+  function createEggs(parent) {
+    const g=new THREE.Group(); parent.add(g);
+    const leafGroup=makeLeaf(g,[0,1.35,0],1.25,.08,0x4f9d52);
+    // Add a little curved stem below leaf
+    mesh(new THREE.CylinderGeometry(.035,.05,1.4,8),material(0x39834b),g,[0,.7,0],[0,0,-.28]);
+    for(let i=0;i<13;i++){
+      const x=((i%5)-2)*.13, y=1.39+Math.floor(i/5)*.055, z=(Math.floor(i/5)%2)*.055;
+      const egg=sphere(g,i%4===0?0xe8d9a0:0xf4e8bd,[x,y,z],[.055,.075,.05],12);
+      egg.rotation.z=(i%3-1)*.25;
+      // subtle dark cap
+      sphere(g,0xb8a76e,[x,y+.055,z],[.028,.018,.027],10);
+    }
+    return g;
+  }
+  function createCaterpillar(parent) {
+    const g=new THREE.Group(); parent.add(g);
+    makeLeaf(g,[0,.55,0],1.5,-.08,0x4c994e);
+    mesh(new THREE.CylinderGeometry(.035,.055,1.3,8),material(0x39834b),g,[0,.25,0],[0,0,-.18]);
+    for(let i=0;i<8;i++){
+      const x=-.72+i*.205, y=.87+Math.sin(i*.55)*.07;
+      const c=sphere(g,i%2?0x62a84f:0x80b955,[x,y,.04],[.19,.19,.17],18);
+      caterpillarParts.push(c);
+      // segment markings
+      sphere(g,0x315f39,[x,y+.11,.16],[.045,.026,.022],10);
+      if(i>0 && i<7) {
+        for(let side of [-1,1]){
+          const leg=mesh(new THREE.ConeGeometry(.045,.19,8),material(0x405d32),g,[x,y-.13,side*.07],[0,0,side*.38]);
+        }
+      }
+    }
+    // Head and face
+    sphere(g,0x5c963f,[.91,.93,.04],[.2,.2,.18],18);
+    sphere(g,0x172f20,[.98,1,.19],[.035,.04,.025],10);
+    sphere(g,0x172f20,[.98,.9,.19],[.035,.04,.025],10);
+    for(let s of [-1,1]){
+      mesh(new THREE.CylinderGeometry(.012,.018,.24,6),material(0x385d2d),g,[.97,1.13,s*.04],[0,0,s*.2]);
+      sphere(g,0x385d2d,[.99,1.25,s*.07],[.025,.025,.025],8);
+    }
+    return g;
+  }
+  function createChrysalis(parent) {
+    const g=new THREE.Group(); parent.add(g);
+    mesh(new THREE.CylinderGeometry(.055,.07,1.9,10),material(0x795237),g,[0,1.05,0],[0,0,-.28]);
+    // silk attachment
+    mesh(new THREE.CylinderGeometry(.012,.018,.42,6),material(0xe8dfc6),g,[.03,1.77,.04],[0,0,-.18]);
+    const body=mesh(new THREE.CapsuleGeometry(.29,.9,6,12),material(0x9ea96a, .55),g,[.02,1.15,.05],[0,0,-.18]);
+    body.scale.set(.8,1.08,.75);
+    for(let i=0;i<5;i++){
+      const y=.75+i*.19;
+      const band=mesh(new THREE.TorusGeometry(.205-i*.012,.018,6,18),material(i%2?0x75844f:0xb7b77a),g,[.02,y,.05],[Math.PI/2,0,-.18]);
+      band.scale.set(.9,1,.8);
+    }
+    sphere(g,0x687748,[.03,1.68,.04],[.13,.1,.12],12);
+    return g;
+  }
+  function createButterfly(parent) {
+    const g=new THREE.Group(); parent.add(g);
+    const wingMat=new THREE.MeshStandardMaterial({color:0xe88b35,roughness:.55,side:THREE.DoubleSide});
+    const darkMat=new THREE.MeshStandardMaterial({color:0x3f4935,roughness:.6,side:THREE.DoubleSide});
+    function wing(side, upper) {
+      const shape=new THREE.Shape();
+      if(upper){
+        shape.moveTo(0,0);shape.bezierCurveTo(side*.15,.62,side*.75,1.22,side*1.02,.86);
+        shape.bezierCurveTo(side*1.18,.58,side*.72,.08,side*.12,-.06);shape.closePath();
+      }else{
+        shape.moveTo(side*.06,-.02);shape.bezierCurveTo(side*.5,.12,side*.85,-.22,side*.7,-.62);
+        shape.bezierCurveTo(side*.57,-.95,side*.2,-.63,0,-.3);shape.closePath();
+      }
+      const geo=new THREE.ShapeGeometry(shape,18);
+      const pivot=new THREE.Group(); pivot.position.set(0,1.35,0);g.add(pivot);
+      const w=mesh(geo,wingMat,pivot,[0,0,0],[0,0,0]);
+      w.material=wingMat; butterflyWings.push({pivot,side,upper});
+      // dark veins and border-like accents represented with slender curves
+      const points=upper?[[0,0],[side*.35,.25],[side*.7,.65],[side*.96,.82]]:[[0,-.1],[side*.28,-.28],[side*.59,-.53]];
+      for(let i=0;i<points.length-1;i++){
+        const a=points[i],b=points[i+1];
+        const line=mesh(new THREE.CylinderGeometry(.012,.012,Math.hypot(b[0]-a[0],b[1]-a[1]),6),darkMat,pivot,[(a[0]+b[0])/2,(a[1]+b[1])/2,.012],[0,0,-Math.atan2(b[0]-a[0],b[1]-a[1])]);
+      }
+      sphere(pivot,0xf8df8c,[side*(upper?.7:.48),upper?.63:-.43,.025],[.075,.075,.02],10);
+      return pivot;
+    }
+    wing(-1,true);wing(1,true);wing(-1,false);wing(1,false);
+    // body, thorax, head
+    sphere(g,0x3e4333,[0,1.12,0],[.105,.56,.12],18);
+    sphere(g,0x4d4b38,[0,1.68,0],[.16,.16,.15],16);
+    sphere(g,0x242c23,[0,1.88,0],[.12,.12,.12],14);
+    // antennae
+    for(const s of [-1,1]){
+      const curve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(s*.05,1.93,0),new THREE.Vector3(s*.18,2.18,0),new THREE.Vector3(s*.32,2.15,.02));
+      const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,12,.018,5,false),material(0x383b2e));g.add(tube);
+      sphere(g,0x383b2e,[s*.32,2.15,.02],[.035,.025,.025],8);
+      // three legs per side
+      for(let j=0;j<3;j++){
+        const leg=mesh(new THREE.CylinderGeometry(.018,.025,.4,6),material(0x393c2d),g,[s*(.08+j*.015),.73-j*.08,.02],[0,0,s*(.45+j*.12)]);
+      }
+    }
+    // Proboscis
+    const proboscis=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0,1.83,.11),new THREE.Vector3(.05,1.7,.2),new THREE.Vector3(.02,1.62,.22)
+    ]),10,.018,6,false),material(0x5a4a31));g.add(proboscis);
+    return g;
+  }
+  function init() {
+    if(!window.THREE || !window.WebGLRenderingContext) throw new Error('Three.js/WebGL unavailable');
+    scene=new THREE.Scene(); scene.background=new THREE.Color(0xdff1e4); scene.fog=new THREE.Fog(0xdff1e4,12,28);
+    camera=new THREE.PerspectiveCamera(42,container.clientWidth/container.clientHeight,.1,100);
+    camera.position.copy(cameraHome); camera.lookAt(cameraTarget);
+    renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    renderer.setSize(container.clientWidth,container.clientHeight);
+    renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+    container.appendChild(renderer.domElement);
+    const hemi=new THREE.HemisphereLight(0xf5fff6,0x6e8b5e,2.1);scene.add(hemi);
+    const sun=new THREE.DirectionalLight(0xfff2d4,3.2);sun.position.set(-4,9,6);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+    const fill=new THREE.DirectionalLight(0xc7e7ff,1.25);fill.position.set(5,4,-5);scene.add(fill);
+    root=new THREE.Group();scene.add(root);buildGarden();
+    for(let i=0;i<4;i++){
+      const group=new THREE.Group();root.add(group);stageGroups.push(group);
+    }
+    createEggs(stageGroups[0]);createCaterpillar(stageGroups[1]);createChrysalis(stageGroups[2]);createButterfly(stageGroups[3]);
+    activeGroup=stageGroups[0];
+    setupInput();
+    resize();
+    selectStage(0,false);
+    animate(0);
+  }
+  function setupInput(){
+    let dragging=false,prevX=0,prevY=0,pointerId=null;
+    renderer.domElement.addEventListener('pointerdown',e=>{
+      dragging=true;prevX=e.clientX;prevY=e.clientY;pointerId=e.pointerId;
+      renderer.domElement.setPointerCapture(pointerId);
+      if(autoRotate){autoRotate=false;updateRotateButton();}
+    });
+    renderer.domElement.addEventListener('pointermove',e=>{
+      if(!dragging)return;
+      const dx=e.clientX-prevX,dy=e.clientY-prevY;prevX=e.clientX;prevY=e.clientY;
+      root.rotation.y+=dx*.008;
+      root.rotation.x=Math.max(-.35,Math.min(.35,root.rotation.x+dy*.004));
+    });
+    const endDrag=()=>{dragging=false;pointerId=null;};
+    renderer.domElement.addEventListener('pointerup',endDrag);
+    renderer.domElement.addEventListener('pointercancel',endDrag);
+    renderer.domElement.addEventListener('lostpointercapture',endDrag);
+    renderer.domElement.addEventListener('wheel',e=>{
+      e.preventDefault();zoom(e.deltaY<0?-.55:.55);
+    },{passive:false});
+    renderer.domElement.addEventListener('dblclick',()=>zoom(-.8));
+    renderer.domElement.tabIndex=0;
+    renderer.domElement.addEventListener('keydown',e=>{
+      if(e.key==='ArrowLeft')root.rotation.y-=.12;
+      if(e.key==='ArrowRight')root.rotation.y+=.12;
+      if(e.key==='ArrowUp')root.rotation.x=Math.max(-.35,root.rotation.x-.06);
+      if(e.key==='ArrowDown')root.rotation.x=Math.min(.35,root.rotation.x+.06);
+      if(e.key==='+'||e.key==='=')zoom(-.5);
+      if(e.key==='-')zoom(.5);
+    });
+  }
+  function zoom(amount){
+    const direction=new THREE.Vector3().subVectors(camera.position,desiredTarget).normalize();
+    const distance=THREE.MathUtils.clamp(camera.position.distanceTo(desiredTarget)+amount,4.3,14);
+    desiredCamera.copy(desiredTarget).addScaledVector(direction,distance);
+  }
+  function resetCamera(){
+    desiredCamera.copy(cameraHome);desiredTarget.copy(cameraTarget);
+    root.rotation.set(0,0,0);
+  }
+  function fitCamera(){
+    desiredTarget.set(0,1.5,0);desiredCamera.set(0,3.4,10.7);
+  }
+  function selectStage(index,updateCamera=true){
+    currentStage=index;
+    stageGroups.forEach((g,i)=>{g.visible=i===index;});
+    activeGroup=stageGroups[index];
+    stageButtons.forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));
+    const info=stageInfo[index];
+    document.getElementById('stage-kicker').textContent=info.kicker;
+    document.getElementById('stage-title').textContent=info.name;
+    const facts=document.getElementById('stage-facts');facts.replaceChildren();
+    info.facts.forEach(t=>{const li=document.createElement('li');li.textContent=t;facts.appendChild(li);});
+    document.getElementById('observe-tip').textContent=info.tip;
+    document.getElementById('question').textContent=info.question;
+    document.getElementById('hint').textContent=info.hint;
+    document.getElementById('hint').style.display='none';
+    document.getElementById('show-hint').textContent='Hiện gợi ý';
+    document.getElementById('show-hint').setAttribute('aria-expanded','false');
+    if(updateCamera){
+      desiredTarget.set(0,index===3?1.6:1.3,0);
+      desiredCamera.set(index===3?0.1:0, index===3?3.1:2.8, index===0?7.3:8.2);
+    }
+    if(tourState==='playing'||tourState==='paused')stopTour(false);
+    document.getElementById('view-status').textContent='Đang quan sát: '+info.name+'. Kéo mô hình để xoay và quan sát từ nhiều góc.';
+  }
+  function updateRotateButton(){
+    const b=document.getElementById('auto-rotate');
+    b.textContent='⟳ Xoay tự do: '+(autoRotate?'Bật':'Tắt');b.setAttribute('aria-pressed',String(autoRotate));
+  }
+  function setTourButtons(){
+    document.getElementById('pause-tour').disabled=tourState!=='playing';
+    document.getElementById('continue-tour').disabled=tourState!=='paused';
+    document.getElementById('stop-tour').disabled=tourState==='idle';
+    document.getElementById('start-tour').disabled=tourState==='playing'||tourState==='paused';
+  }
+  function stopTour(showMessage=true){
+    if(tourTimer){clearTimeout(tourTimer);tourTimer=null;}
+    tourState='idle';setTourButtons();
+    if(showMessage)document.getElementById('tour-status').textContent='Đã kết thúc trình diễn. Em có thể chọn một giai đoạn để khám phá.';
+  }
+  function scheduleTour(){
+    if(tourState!=='playing')return;
+    tourTimer=setTimeout(()=>{
+      tourIndex++;
+      if(tourIndex>=4){selectStage(3,true);stopTour(false);document.getElementById('tour-status').textContent='Đã khám phá đủ bốn giai đoạn của vòng đời bướm.';return;}
+      selectStageFromTour(tourIndex);
+      scheduleTour();
+    },reducedMotion?5000:4500);
+  }
+  function selectStageFromTour(index){
+    currentStage=index;stageGroups.forEach((g,i)=>g.visible=i===index);activeGroup=stageGroups[index];
+    stageButtons.forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));
+    const info=stageInfo[index];
+    document.getElementById('stage-kicker').textContent=info.kicker;
+    document.getElementById('stage-title').textContent=info.name;
+    const facts=document.getElementById('stage-facts');facts.replaceChildren();
+    info.facts.forEach(t=>{const li=document.createElement('li');li.textContent=t;facts.appendChild(li);});
+    document.getElementById('observe-tip').textContent=info.tip;
+    document.getElementById('question').textContent=info.question;
+    document.getElementById('hint').textContent=info.hint;document.getElementById('hint').style.display='none';
+    document.getElementById('show-hint').textContent='Hiện gợi ý';document.getElementById('show-hint').setAttribute('aria-expanded','false');
+    desiredTarget.set(0,index===3?1.6:1.3,0);desiredCamera.set(index===3?0.1:0,index===3?3.1:2.8,index===0?7.3:8.2);
+    document.getElementById('tour-status').textContent='Đang trình diễn: '+info.name+' ('+(index+1)+'/4).';
+  }
+  function startTour(){
+    if(tourTimer)clearTimeout(tourTimer);
+    tourState='playing';tourIndex=0;setTourButtons();selectStageFromTour(0);
+    document.getElementById('tour-status').textContent='Đang trình diễn: Trứng (1/4). Mỗi giai đoạn kéo dài khoảng 4–5 giây.';
+    scheduleTour();
+  }
+  function animate(time){
+    raf=requestAnimationFrame(animate);
+    const dt=Math.min(.05,(time-lastTime)/1000||0);lastTime=time;
+    if(autoRotate)root.rotation.y+=dt*.22;
+    // Smooth camera movement, with a stable target outside the canvas UI.
+    camera.position.lerp(desiredCamera,1-Math.pow(.001,dt));
+    const targetNow=camera.userData.target||(camera.userData.target=cameraTarget.clone());
+    targetNow.lerp(desiredTarget,1-Math.pow(.001,dt));camera.lookAt(targetNow);
+    // Restrained organic movement; all motion remains within the 3D canvas.
+    const t=time*.001;
+    caterpillarParts.forEach((p,i)=>{p.position.y=.87+Math.sin(i*.55)*.07+Math.sin(t*2+i*.7)*.025;});
+    butterflyWings.forEach((w,i)=>{
+      const sign=w.side;
+      const flap=Math.sin(t*5)*.22;
+      w.pivot.rotation.y=sign*(w.upper?-.08+flap:.1-flap*.7);
+      w.pivot.rotation.z=sign*(w.upper?-.02+flap*.12:.08-flap*.1);
+    });
+    stageGroups[2].rotation.z=Math.sin(t*.7)*.015;
+    if(renderer&&scene&&camera)renderer.render(scene,camera);
+  }
+  function resize(){
+    if(!renderer||!camera)return;
+    const w=Math.max(1,container.clientWidth),h=Math.max(1,container.clientHeight);
+    camera.aspect=w/h;camera.fov=42;camera.updateProjectionMatrix();renderer.setSize(w,h,false);
+  }
+  document.getElementById('auto-rotate').addEventListener('click',()=>{autoRotate=!autoRotate;updateRotateButton();});
+  document.getElementById('zoom-in').addEventListener('click',()=>zoom(-.8));
+  document.getElementById('zoom-out').addEventListener('click',()=>zoom(.8));
+  document.getElementById('reset-view').addEventListener('click',()=>{resetCamera();document.getElementById('view-status').textContent='Đã đặt lại góc nhìn ban đầu.';});
+  document.getElementById('fit-view').addEventListener('click',()=>{fitCamera();document.getElementById('view-status').textContent='Đang hiển thị toàn cảnh khu vườn và mô hình.';});
+  stageButtons.forEach(b=>b.addEventListener('click',()=>{selectStage(Number(b.dataset.stage));document.getElementById('tour-status').textContent='Đã chọn giai đoạn '+stageInfo[currentStage].name+'.';}));
+  document.getElementById('start-tour').addEventListener('click',startTour);
+  document.getElementById('pause-tour').addEventListener('click',()=>{if(tourState!=='playing')return;if(tourTimer)clearTimeout(tourTimer);tourTimer=null;tourState='paused';setTourButtons();document.getElementById('tour-status').textContent='Đã tạm dừng ở giai đoạn '+stageInfo[currentStage].name+'.';});
+  document.getElementById('continue-tour').addEventListener('click',()=>{if(tourState!=='paused')return;tourState='playing';setTourButtons();document.getElementById('tour-status').textContent='Tiếp tục trình diễn: '+stageInfo[currentStage].name+'.';scheduleTour();});
+  document.getElementById('stop-tour').addEventListener('click',()=>stopTour(true));
+  document.getElementById('show-hint').addEventListener('click',()=>{
+    const hint=document.getElementById('hint'),btn=document.getElementById('show-hint'),show=hint.style.display!=='block';
+    hint.style.display=show?'block':'none';btn.textContent=show?'Ẩn gợi ý':'Hiện gợi ý';btn.setAttribute('aria-expanded',String(show));
+  });
+  window.addEventListener('resize',resize);
+  if(window.ResizeObserver)new ResizeObserver(resize).observe(container);
+  try{init();}catch(err){console.error(err);errorBox.style.display='block';}
+})();
+</script>
+</body>
+</html>
